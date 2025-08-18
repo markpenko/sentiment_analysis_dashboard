@@ -210,4 +210,4 @@ def upload_file():
     return render_template('upload.html', file_text=file_text)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+#    app.run(debug=True)
