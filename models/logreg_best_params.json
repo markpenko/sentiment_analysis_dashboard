@@ -1,0 +1,12 @@
+{
+  "best_params": {
+    "clf__C": 10,
+    "clf__solver": "lbfgs",
+    "tfidf__max_features": 50000,
+    "tfidf__ngram_range": [
+      1,
+      2
+    ]
+  },
+  "test_accuracy": 0.9085
+}

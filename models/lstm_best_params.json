@@ -1,0 +1,12 @@
+{
+  "best_config": {
+    "embedding_dim": 128,
+    "lstm_units": 64,
+    "dropout": 0.3,
+    "lr": 0.0005,
+    "batch_size": 64,
+    "epochs": 3
+  },
+  "val_accuracy": 0.890749990940094,
+  "test_accuracy": 0.8867999911308289
+}

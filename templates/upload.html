@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Sentiment Analysis</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="btn btn-secondary mt-3">Go to Analysis Page</a>
+        <h1 class="mt-5">Upload a File for Sentiment Analysis</h1>
+        <form id="upload-form" class="mt-4" enctype="multipart/form-data" method="post" action="/upload">
+            <div class="form-group">
+                <input type="file" class="form-control-file" id="file" name="file" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload & Analyze</button>
+        </form>
+
+        <div id="result" class="mt-4"></div>
+        <div id="uploaded-text" class="mt-4"></div> 
+
+        {% if file_text %}
+          <h3>Uploaded Text:</h3>
+          <pre style="white-space: pre-wrap;">{{ file_text }}</pre>
+        {% endif %}
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+        $(function () {
+            $('#upload-form').on('submit', function (event) {
+                event.preventDefault();
+                var formData = new FormData(this);
+
+      $.ajax({
+        url: '/upload',
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+
+        success: function (data) {
+          let html = '';
+
+          if (data.sentiment) {
+            html += `<h3>Overall Sentiment: ${data.sentiment}</h3>`;
+          }
+          if (data.result_html) {
+            html += data.result_html;
+          }
+          if (data.wordcloud_url) {
+            html += `<img src="${data.wordcloud_url}" alt="Word Cloud" class="img-fluid mt-3" />`;
+          }
+          if (data.message && !data.sentiment && !data.result_html) {
+            html += `<div class="alert alert-info">${data.message}</div>`;
+          }
+          $('#result').html(html);
+
+          // Show uploaded text if provided
+          if (data.file_text) {
+            const safe = $('<div>').text(data.file_text).html(); // escape
+            $('#uploaded-text').html(`<h4>Uploaded Text</h4><pre style="white-space:pre-wrap;">${safe}</pre>`);
+          } else {
+            $('#uploaded-text').empty();
+          }
+        },
+
+        error: function (xhr) {
+          let msg = 'Upload failed.';
+          try {
+            const j = xhr.responseJSON;
+            if (j && (j.error || j.message)) msg = j.error || j.message;
+          } catch (_) {}
+          $('#result').html(`<div class="alert alert-danger">${msg}</div>`);
+          $('#uploaded-text').empty();
+        }
+      });
+    });
+  });
+</script>
+</body>
+</html>

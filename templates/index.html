@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentiment Analysis Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <a href="/upload" class="btn btn-secondary mt-3">Go to Upload Page</a>
+        <h1 class="mt-5">Sentiment Analysis Dashboard</h1>
+        <form id="analysis-form" class="mt-4">
+            <div class="form-group">
+                <label for="text">Enter Text</label>
+                <textarea class="form-control" id="text" name="text" rows="3" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="model_type">Select Model</label>
+                <select class="form-control" id="model_type" name="model_type" required>
+                    <option value="logistic_regression">Logistic Regression</option>
+                    <option value="lstm">LSTM</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Analyze Sentiment</button>
+        </form>
+        <div id="result" class="mt-4"></div>
+        <div id="wordcloud" class="mt-4"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#analysis-form').on('submit', function(event) {
+                event.preventDefault();
+                const formData = $(this).serialize();
+                $.post('/analyze', formData, function(data) {
+                    $('#result').html(`<h3>Sentiment: ${data.sentiment}</h3>`);
+                    $('#graph').html(data.graph_html);
+                    $('#wordcloud').html(`<img src="${data.wordcloud_url}" alt="Word Cloud" class="img-fluid" />`);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

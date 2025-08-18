@@ -1,0 +1,73 @@
+## Chapter 13 Chapter 13: Project: Sentiment Analysis Dashboard
+
+Need to make weekly post before 23:59 Aug 14
+
+Awaiting tasks:
+Done: preprocess text
+Done: build and train models
+    log_reg, LSTM, and transformer (removed transformer)
+Done: app.py complete and functioning. 
+
+
+
+Evaluate and pick best model.
+
+Then move onto 13.4 Developing the Dashboard Interface pg 573 
+
+Notes:
+## Defining requirements
+from text
+1. Upload text data from various sources.
+2. Preprocess the text data to prepare it for sentiment analysis.
+3. Analyze the sentiment of the text data using a trained model.
+4. Visualize the sentiment distribution and trends over time.
+5. Allow users to explore the sentiment analysis results through an intuitive interface.
+6. Store user preferences and interaction history to personalize the experience.
+
+from teacher
+Key Steps in the Project:
+1. Data Collection & Preprocessing: Clean, tokenize, and prepare the text for analysis. yes 
+2. Model Development: Train a sentiment analysis model using statistical or machine learning approaches. yes
+3. Dashboard Design: Create an interface to visualize sentiment data (charts, trends, word clouds). 
+4. Deployment: Make the dashboard accessible for real-world use. Use heroku
+
+## File structure
+sentiment_analysis_dashboard/
+├── data/
+│ ├── raw_data/
+│ ├── processed_data/
+├── models/
+│ ├── sentiment_model.h5
+│ └── tokenizer.pickle
+├── scripts/
+│ ├── data_preprocessing.py
+│ ├── sentiment_analysis.py
+│ ├── dashboard.py
+├── static/
+│ ├── css/
+│ ├── js/
+├── templates/
+│ ├── index.html
+├── app.py
+└── requirements.txt
+
+## ls . data models scripts templetes static 
+.:
+app.py		data		models		notes.txt	requirments.txt	scripts		static		templetes
+
+data:
+processed_data	raw_data
+
+models:
+sentiment_model.keras	tokenizer.pickle
+
+scripts:
+dashboard.py		data_preprocessing.py	sentiment_analysis.py
+
+static:
+css	js
+
+templetes:
+index.html
+
+
