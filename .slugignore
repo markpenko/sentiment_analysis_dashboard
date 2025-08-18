@@ -1,11 +1,17 @@
-# .slugignore
-
+# Exclude unnecessary files from slug
 *.ipynb
-__pycache__/
 *.csv
-*.json
+*.md
+*.txt
+*.log
+__pycache__/
+*.egg-info/
+venv/
+.venv/
+env/
+build/
+dist/
 data/
 models/
-venv/
-.env
-.DS_Store
+notebooks/
+tests/
