@@ -1,0 +1,6 @@
+data/
+models/
+sentiment_dashboard.zip
+*.zip
+*.numbers
+*.DS_Store
