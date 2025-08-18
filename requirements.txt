@@ -3,3 +3,4 @@ gunicorn
 numpy
 pandas
 scikit-learn
+tensorflow==2.13.0
