@@ -1,6 +1,0 @@
-Flask
-requests
-pandas
-scikit-learn
-tensorflow
-plotly
