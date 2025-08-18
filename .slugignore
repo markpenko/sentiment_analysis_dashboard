@@ -1,0 +1,11 @@
+# .slugignore
+
+*.ipynb
+__pycache__/
+*.csv
+*.json
+data/
+models/
+venv/
+.env
+.DS_Store
