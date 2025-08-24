@@ -5,6 +5,7 @@
 import os
 import joblib
 import numpy as np
+import tensorflow as tf
 import plotly.express as px
 import pandas as pd
 import string
@@ -208,5 +209,5 @@ def upload_file():
     
     return render_template('upload.html', file_text=file_text)
 
-# if __name__ == '__main__':
-#     app.run(debug=True)
+if __name__ == '__main__':
+    app.run(debug=True)

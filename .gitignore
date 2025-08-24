@@ -1,5 +1,6 @@
 /data/
 models/
+static/wordcloud.png
 sentiment_dashboard.zip
 *.zip
 *.numbers
@@ -10,3 +11,42 @@ data/
 *.keras
 *.pickle
 *.numbers
+
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+*.egg-info/
+*.egg
+*.log
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test / Coverage
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Others
+*.bak
