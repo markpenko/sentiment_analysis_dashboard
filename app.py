@@ -10,8 +10,8 @@ import plotly.express as px
 import pandas as pd
 import string
 from pathlib import Path
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import load_model # pyright: ignore[reportMissingImports]
+from tensorflow.keras.preprocessing.sequence import pad_sequences # pyright: ignore[reportMissingImports]
 from flask import Flask, request, render_template, jsonify
 from werkzeug.utils import secure_filename
 from wordcloud import WordCloud
