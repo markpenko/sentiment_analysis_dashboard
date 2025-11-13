@@ -2,22 +2,22 @@
 # Mark Antepenko
 
 # Import Libraries
-import os
-import json
-import joblib
-import numpy as np
-import random
-from pathlib import Path
 import pandas as pd
+import joblib
+from pathlib import Path
+import os
 import tensorflow as tf
-from tensorflow.keras import layers, models  # pyright: ignore[reportMissingImports]
 from tensorflow.keras.preprocessing.text import Tokenizer  # pyright: ignore[reportMissingImports]
 from tensorflow.keras.preprocessing.sequence import pad_sequences  # pyright: ignore[reportMissingImports]
+from tensorflow.keras.models import Sequential  # pyright: ignore[reportMissingImports]
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout  # pyright: ignore[reportMissingImports]
 from tensorflow.keras.optimizers.legacy import Adam as LegacyAdam  # pyright: ignore[reportMissingImports]
 from tensorflow.keras.metrics import AUC  # pyright: ignore[reportMissingImports]
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau  # pyright: ignore[reportMissingImports]
 from sklearn.model_selection import StratifiedShuffleSplit
-from sklearn.metrics import roc_auc_score
+import numpy as np
+import random
+import json
 from sklearn.utils.class_weight import compute_class_weight
 
 # Runtime safety toggle
@@ -116,13 +116,13 @@ best_model = None
 best_cfg = None
 
 for cfg in combos:
-    model = models.Sequential([
-        layers.Embedding(input_dim=vocab_size_effective, output_dim=cfg["embedding_dim"], input_length=max_length, mask_zero=True),
-        layers.LSTM(cfg["lstm_units"], return_sequences=True),
-        layers.Dropout(cfg["dropout"]),
-        layers.LSTM(cfg["lstm_units"] // 2),
-        layers.Dropout(cfg["dropout"]),
-        layers.Dense(1, activation="sigmoid")
+    model = Sequential([
+        Embedding(input_dim=vocab_size_effective, output_dim=cfg["embedding_dim"], input_length=max_length, mask_zero=True),
+        LSTM(cfg["lstm_units"], return_sequences=True),
+        Dropout(cfg["dropout"]),
+        LSTM(cfg["lstm_units"] // 2),
+        Dropout(cfg["dropout"]),
+        Dense(1, activation="sigmoid")
     ])
     opt = LegacyAdam(learning_rate=cfg["lr"])
     model.compile(optimizer=opt, loss="binary_crossentropy", metrics=["accuracy", AUC(name="auc")])
@@ -149,6 +149,7 @@ test_loss = float(metrics.get("loss", 0.0))
 test_acc = float(metrics.get("accuracy", 0.0))
 y_prob = best_model.predict(Xte, verbose=0).ravel()
 try:
+    from sklearn.metrics import roc_auc_score
     test_auc = float(roc_auc_score(y_test, y_prob))
 except Exception:
     test_auc = None

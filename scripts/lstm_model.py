@@ -6,7 +6,7 @@ import pandas as pd
 import joblib
 from pathlib import Path
 import os
-import tensorflow as tf  # now safe to import with device prefs set
+import tensorflow as tf  
 from tensorflow.keras.preprocessing.text import Tokenizer # pyright: ignore[reportMissingImports]
 from tensorflow.keras.preprocessing.sequence import pad_sequences # pyright: ignore[reportMissingImports]
 from tensorflow.keras.models import Sequential # pyright: ignore[reportMissingImports]
