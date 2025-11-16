@@ -11,7 +11,7 @@ from tensorflow.keras.preprocessing.text import Tokenizer # pyright: ignore[repo
 from tensorflow.keras.preprocessing.sequence import pad_sequences # pyright: ignore[reportMissingImports]
 from tensorflow.keras.models import Sequential # pyright: ignore[reportMissingImports]
 from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout # pyright: ignore[reportMissingImports]
-from tensorflow.keras.optimizers.legacy import Adam as LegacyAdam  # pyright: ignore[reportMissingImports]
+from tensorflow.keras.optimizers import Adam  # pyright: ignore[reportMissingImports]
 from tensorflow.keras.metrics import AUC # pyright: ignore[reportMissingImports]
 from sklearn.metrics import accuracy_score, classification_report
 import numpy as np
@@ -106,7 +106,7 @@ Dense(1, activation='sigmoid')
 # Compile the model
 print("Compiling the model...")
 model.compile(
-    optimizer=LegacyAdam(learning_rate=0.001),
+    optimizer=Adam(learning_rate=0.001),  # CHANGED TO STANDARD ADAM
     loss='binary_crossentropy',
     metrics=['accuracy', AUC(name='auc')]
 )
@@ -151,7 +151,19 @@ history = model.fit(
 
 # Save the trained model and tokenizer
 print("Saving the model and tokenizer...")
+
+# Saving weights
+model.save_weights(str(MODELS_DIR / "lstm_model_weights.h5"))
+
+# Saving architecture
+model_json = model.to_json()
+with open(MODELS_DIR / "lstm_model_architecture.json", "w") as json_file:
+    json_file.write(model_json)
+
+# Save full model
 model.save(str(MODELS_DIR / "lstm_model.keras"))
+
+# Save tokenizer
 joblib.dump(tokenizer, MODELS_DIR / "tokenizer.joblib")
 
 # Save metadata
@@ -159,10 +171,23 @@ meta = {
     "vocab_size_requested": int(VOCAB_SIZE),
     "vocab_size_effective": int(vocab_size_effective),
     "max_length": int(max_length),
-    "seed": int(SEED)
+    "seed": int(SEED),
+    "embedding_dim": int(embedding_dim),
+    "architecture": {
+        "lstm1_units": 128,
+        "lstm2_units": 64,
+        "dropout_rate": 0.2,
+        "optimizer": "Adam",  # CHANGED FROM LegacyAdam
+        "learning_rate": 0.001,
+        "loss": "binary_crossentropy"
+    }
 }
 with open(MODELS_DIR / "lstm_meta.json", "w") as f:
     json.dump(meta, f, indent=2)
+
+print(f"Saved model weights -> {MODELS_DIR / 'lstm_model_weights.h5'}")
+print(f"Saved model architecture -> {MODELS_DIR / 'lstm_model_architecture.json'}")
+print(f"Saved full model -> {MODELS_DIR / 'lstm_model.keras'}")
 
 # Evaluate the model on the test set
 print("Evaluating the model on the test set...")

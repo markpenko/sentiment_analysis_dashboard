@@ -15,6 +15,7 @@ from tensorflow.keras.optimizers.legacy import Adam as LegacyAdam  # pyright: ig
 from tensorflow.keras.metrics import AUC  # pyright: ignore[reportMissingImports]
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau  # pyright: ignore[reportMissingImports]
 from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.metrics import accuracy_score, classification_report
 import numpy as np
 import random
 import json
@@ -63,7 +64,6 @@ DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-
 # Load preprocessed data
 print("Loading preprocessed data...")
 train_data = pd.read_csv(DATA_DIR / 'processed_data/train_data_preprocessed.csv')
@@ -76,11 +76,25 @@ y_train = train_data['sentiment'].apply(lambda x: 1 if x == 'positive' else 0)
 X_test = test_data['review']
 y_test = test_data['sentiment'].apply(lambda x: 1 if x == 'positive' else 0)
 
-VOCAB_SIZE = 5000
-max_length = 200
-tokenizer = Tokenizer(num_words=VOCAB_SIZE, oov_token="<OOV>")
-tokenizer.fit_on_texts(X_train)
-vocab_size_effective = min(VOCAB_SIZE, len(tokenizer.word_index) + 1)
+# Load existing model and tokenizer
+print("Loading existing model and tokenizer...")
+try:
+    base_model = tf.keras.models.load_model(MODELS_DIR / "lstm_model.keras") 
+    tokenizer = joblib.load(MODELS_DIR / "tokenizer.joblib")
+    
+    # Load metadata
+    with open(MODELS_DIR / "lstm_meta.json", "r") as f:
+        meta = json.load(f)
+    
+    VOCAB_SIZE = meta["vocab_size_requested"]
+    max_length = meta["max_length"]
+    vocab_size_effective = meta["vocab_size_effective"]
+    
+    print(f"Loaded existing model with vocab_size={vocab_size_effective}, max_length={max_length}")
+    
+except FileNotFoundError:
+    print("ERROR: No existing model found. Please run lstm_model.py first!")
+    exit(1)
 
 def vec(xs):
     return pad_sequences(
@@ -106,26 +120,39 @@ classes = np.array([0, 1])
 class_weights = compute_class_weight(class_weight='balanced', classes=classes, y=y_tr)
 class_weight_dict = {int(c): float(w) for c, w in zip(classes, class_weights)}
 
-combos = [
-    {"embedding_dim": 100, "lstm_units": 128, "dropout": 0.2, "lr": 1e-3, "batch_size": 32, "epochs": 10},
-    {"embedding_dim": 128, "lstm_units": 128, "dropout": 0.3, "lr": 5e-4, "batch_size": 32, "epochs": 10},
+# Evaluate baseline model first
+print("Evaluating baseline model...")
+baseline_metrics = base_model.evaluate(Xte, y_test, verbose=0, return_dict=True)
+baseline_acc = float(baseline_metrics.get("accuracy", 0.0))
+print(f"Baseline model accuracy: {baseline_acc:.4f}")
+
+# Hyperparameter configurations to try (fine-tuning around existing parameters)
+fine_tune_configs = [
+    {"lr": 5e-4, "batch_size": 32, "epochs": 5, "description": "Lower LR"},
+    {"lr": 2e-3, "batch_size": 32, "epochs": 5, "description": "Higher LR"},
+    {"lr": 1e-3, "batch_size": 16, "epochs": 5, "description": "Smaller batch"},
+    {"lr": 1e-3, "batch_size": 64, "epochs": 5, "description": "Larger batch"},
 ]
 
 best_val = -1.0
 best_model = None
 best_cfg = None
+best_description = ""
 
-for cfg in combos:
-    model = Sequential([
-        Embedding(input_dim=vocab_size_effective, output_dim=cfg["embedding_dim"], input_length=max_length, mask_zero=True),
-        LSTM(cfg["lstm_units"], return_sequences=True),
-        Dropout(cfg["dropout"]),
-        LSTM(cfg["lstm_units"] // 2),
-        Dropout(cfg["dropout"]),
-        Dense(1, activation="sigmoid")
-    ])
+# Fine-tuning loop
+print("Starting fine-tuning of existing model...")
+for cfg in fine_tune_configs:
+    print(f"Testing configuration: {cfg['description']} - {cfg}")
+    
+    # Load fresh copy of the base model for each experiment
+    model = tf.keras.models.clone_model(base_model)
+    model.set_weights(base_model.get_weights())  # Copy weights from original
+    
+    # Recompile with new optimizer settings
     opt = LegacyAdam(learning_rate=cfg["lr"])
     model.compile(optimizer=opt, loss="binary_crossentropy", metrics=["accuracy", AUC(name="auc")])
+    
+    # Fine-tune the model
     hist = model.fit(
         X_tr, y_tr,
         validation_data=(X_val, y_val),
@@ -138,53 +165,19 @@ for cfg in combos:
             ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=1, verbose=1)
         ],
     )
+    
     val_auc = float(max(hist.history.get("val_auc", [0.0])))
+    print(f"Configuration '{cfg['description']}' achieved val_auc: {val_auc:.4f}")
+    
     if val_auc > best_val:
         best_val = val_auc
         best_model = model
         best_cfg = cfg
+        best_description = cfg['description']
 
+# Evaluate best fine-tuned model
+print("\nEvaluating best fine-tuned model...")
 metrics = best_model.evaluate(Xte, y_test, verbose=0, return_dict=True)
 test_loss = float(metrics.get("loss", 0.0))
 test_acc = float(metrics.get("accuracy", 0.0))
 y_prob = best_model.predict(Xte, verbose=0).ravel()
-try:
-    from sklearn.metrics import roc_auc_score
-    test_auc = float(roc_auc_score(y_test, y_prob))
-except Exception:
-    test_auc = None
-print("\n[LSTM] Best val_auc:", best_val, "| Test accuracy:", float(test_acc), "| Test AUC:", test_auc if test_auc is not None else "n/a")
-
-# Persist artifacts
-out_model = MODELS_DIR / "lstm_best.keras"
-best_model.save(out_model.as_posix())
-
-out_tok = MODELS_DIR / "lstm_best_tokenizer.joblib"
-joblib.dump(tokenizer, out_tok)
-
-out_params = MODELS_DIR / "lstm_best_params.json"
-with open(out_params, "w") as f:
-    json.dump(
-        {"best_config": best_cfg, "val_auc": float(best_val), "test_accuracy": float(test_acc), "test_auc": test_auc},
-        f,
-        indent=2,
-    )
-
-# Save metadata
-meta = {
-    "vocab_size_requested": int(VOCAB_SIZE),
-    "vocab_size_effective": int(vocab_size_effective),
-    "max_length": int(max_length),
-    "seed": int(SEED),
-    "best_config": best_cfg
-}
-with open(MODELS_DIR / "lstm_hyper_meta.json", "w") as f:
-    json.dump(meta, f, indent=2)
-
-# Display results
-print(f"[LSTM] Saved model -> {out_model}")
-print(f"[LSTM] Saved params -> {out_params}")
-print(f"[LSTM] Saved tokenizer -> {out_tok}")
-print(f"[LSTM] Best val score -> {best_val:.4f}")
-print(f"[LSTM] Best params -> {best_cfg}")
-print(f"[LSTM] Test accuracy -> {test_acc:.4f}")
