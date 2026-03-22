@@ -1,14 +1,16 @@
+# data_preprocessing.py
 # Mark Antepenko
+
 # Importing libraries
 import nltk
 import string
 import pandas as pd
+import pickle
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-import pickle 
 from imblearn.over_sampling import SMOTE
 
 # Download NLTK resources
@@ -49,7 +51,6 @@ test_data.to_csv(PROCESSED_DIR / 'test_data.csv', index=False)
 # Initialize lemmatizer
 print("Initializing lemmatizer ...")
 lemmatizer = WordNetLemmatizer()
-
 STOP = set(stopwords.words('english'))
 
 # Define preprocessing function
@@ -76,26 +77,6 @@ print("Test data:")
 print(test_data.info())
 print(test_data.head())
 
-# Save preprocessed data (used by some downstream scripts for labels)
-print("Saving preprocessed CSVs ...")
-train_data[['review', 'sentiment']].to_csv(PROCESSED_DIR / 'train_data_preprocessed.csv', index=False)
-test_data[['review', 'sentiment']].to_csv(PROCESSED_DIR / 'test_data_preprocessed.csv', index=False)
-
-# Vectorize the preprocessed text
-print("Vectorizing text data ...")
-vectorizer = TfidfVectorizer(max_features=5000)
-X_train = vectorizer.fit_transform(train_data['review']).toarray()  # pyright: ignore[reportAttributeAccessIssue] # 
-X_test = vectorizer.transform(test_data['review']).toarray() # pyright: ignore[reportAttributeAccessIssue]
-
-# Save the vectorizer and vectorized data
-print("Saving vectorizer and vectorized data ...")
-with open(MODELS_DIR / 'vectorizer.pickle', 'wb') as file:
-    pickle.dump(vectorizer, file)
-with open(PROCESSED_DIR / 'X_train.pickle', 'wb') as file:
-    pickle.dump(X_train, file)
-with open(PROCESSED_DIR / 'X_test.pickle', 'wb') as file:
-    pickle.dump(X_test, file)
-
 # Extract features and labels
 print("Extracting features and labels ...")
 X_train = train_data['review']
@@ -103,19 +84,29 @@ y_train = train_data['sentiment']
 X_test = test_data['review']
 y_test = test_data['sentiment']
 
-# Vectorize training data for balancing
-print("Vectorizing training data for balancing ...")
-X_train_vectorized = vectorizer.transform(X_train).toarray()
-X_test_vectorized  = vectorizer.transform(X_test).toarray()
+# Vectorize the preprocessed text
+print("Vectorizing text data ...")
+vectorizer = TfidfVectorizer(max_features=5000)
+X_train_vectorizer = vectorizer.fit_transform(train_data['review']).toarray()  # pyright: ignore[reportAttributeAccessIssue] # 
+X_test_vectorizer = vectorizer.transform(test_data['review']).toarray() # pyright: ignore[reportAttributeAccessIssue]
 
+# Save the vectorizer and vectorized data
+print("Saving vectorizer and vectorized data ...")
+with open(PROJECT_ROOT / 'models/vectorizer.pickle', 'wb') as file:
+    pickle.dump(vectorizer, file)
+with open(DATA_DIR / 'processed_data/X_train.pickle', 'wb') as file:
+    pickle.dump(X_train_vectorizer, file)
+with open(DATA_DIR / 'processed_data/X_test.pickle', 'wb') as file:
+    pickle.dump(X_test_vectorizer, file)
+    
 # Balance the dataset using SMOTE
 print("Balancing dataset using SMOTE ...")
 smote = SMOTE(random_state=42)
-X_train_balanced, y_train_balanced = smote.fit_resample(X_train_vectorized, y_train)  # pyright: ignore[reportAssignmentType]
+X_train_balanced, y_train_balanced = smote.fit_resample(X_train_vectorizer, y_train)  # pyright: ignore[reportAssignmentType]
 
 # Save the balanced data
 print("Saving balanced training data ...")
-with open(PROCESSED_DIR / 'X_train_balanced.pickle', 'wb') as file:
+with open(DATA_DIR / 'processed_data/X_train_balanced.pickle', 'wb') as file:
     pickle.dump(X_train_balanced, file)
-with open(PROCESSED_DIR / 'y_train_balanced.pickle', 'wb') as file:
+with open(DATA_DIR / 'processed_data/y_train_balanced.pickle', 'wb') as file:
     pickle.dump(y_train_balanced, file)
