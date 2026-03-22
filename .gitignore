@@ -1,18 +1,3 @@
-/data/
-models/
-static/wordcloud.png
-sentiment_dashboard.zip
-*.zip
-*.numbers
-*.DS_Store
-data/
-*.zip
-*.joblib
-*.keras
-*.pickle
-*.numbers
-
-
 # macOS
 .DS_Store
 .AppleDouble
@@ -23,7 +8,6 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.pkl
 *.egg-info/
 *.egg
 *.log
@@ -33,6 +17,10 @@ __pycache__/
 env/
 venv/
 ENV/
+
+# Local config
+.env
+.python-version
 
 # IDEs / Editors
 .vscode/
@@ -48,5 +36,21 @@ ENV/
 .pytest_cache/
 htmlcov/
 
-# Others
+# Archives / temp tools
+*.zip
+*.numbers
 *.bak
+*.jar
+
+# Generated outputs
+static/wordcloud.png
+
+# Runtime uploads
+data/uploads/
+
+# Training checkpoints
+results/
+sentiment_analysis_dashboard.bfg-report/
+
+# Large raw datasets
+data/raw_data/
