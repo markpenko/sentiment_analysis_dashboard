@@ -6,10 +6,8 @@ import json
 import pickle
 import pandas as pd
 from pathlib import Path
-from sklearn.pipeline import Pipeline
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
-from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
 import sys

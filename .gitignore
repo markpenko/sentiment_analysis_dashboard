@@ -45,12 +45,15 @@ htmlcov/
 # Generated outputs
 static/wordcloud.png
 
-# Runtime uploads
-data/uploads/
+# NLP resources
+nltk/
 
-# Training checkpoints
-results/
-sentiment_analysis_dashboard.bfg-report/
-
-# Large raw datasets
+# datasets
 data/raw_data/
+data/processed_data/
+
+# Models
+models/
+models/logistic_regression_bundle.joblib
+models/tuned_logistic_regression_bundle.joblib
+models/logreg_best_params.json      
