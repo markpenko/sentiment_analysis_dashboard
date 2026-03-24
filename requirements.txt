@@ -3,4 +3,8 @@ gunicorn
 numpy
 pandas
 scikit-learn
-tflite-runtime
+tensorflow
+plotly
+nltk
+python-dotenv
+wordcloud

@@ -1,4 +1,4 @@
-# Chapter 13 log_hyperparameter.py
+# log_hyperparameter.py
 # Mark Antepenko
 
 # Import Libraries

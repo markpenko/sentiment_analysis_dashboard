@@ -1,4 +1,4 @@
-# Chapter 13 logistic_regression.py
+# logistic_regression.py
 # Mark Antepenko
 
 # Import libraries
@@ -16,53 +16,63 @@ def main():
     MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Verify data files exist before proceeding
+    x_train_path = DATA_DIR / "processed_data/X_train_balanced.pickle"
+    y_train_path = DATA_DIR / "processed_data/y_train_balanced.pickle"
+    x_test_path = DATA_DIR / "processed_data/X_test.pickle"
+    test_csv_path = DATA_DIR / "processed_data/test_data_preprocessed.csv"
+    vectorizer_path = MODELS_DIR / "vectorizer.pickle"
+
+    required_files = [x_train_path, y_train_path, x_test_path, test_csv_path, vectorizer_path]
+    for path in required_files:
+        if not path.exists():
+            print(f"[ERROR] Missing file: {path}", file=sys.stderr)
+            return
+
     # Load balanced training data
     print("Loading training data ...")  
-    with open(DATA_DIR / 'processed_data/X_train_balanced.pickle', 'rb') as file:
+    with open(x_train_path, 'rb') as file:
         X_train = pickle.load(file)
-    with open(DATA_DIR / 'processed_data/y_train_balanced.pickle', 'rb') as file:
+    with open(y_train_path, 'rb') as file:
         y_train = pickle.load(file)
 
     # Load fitted vectorizer
     print("Loading fitted vectorizer ...")
-    with open(MODELS_DIR / 'vectorizer.pickle', 'rb') as file:
+    with open(vectorizer_path, 'rb') as file:
         vectorizer = pickle.load(file)
 
     # Load test data
     print("Loading test data ...")
-    with open(DATA_DIR / 'processed_data/X_test.pickle', 'rb') as file:
+    with open(x_test_path, 'rb') as file:
         X_test = pickle.load(file)
-    test_data = pd.read_csv(DATA_DIR / 'processed_data/test_data_preprocessed.csv')
+    test_data = pd.read_csv(test_csv_path)
+
+    if "sentiment" not in test_data.columns:
+        print("[ERROR] 'sentiment' column not found in test_data_preprocessed.csv", file=sys.stderr)
+        return
     y_test = test_data['sentiment']
 
-    print(f"X_train type: {type(X_train)}")
-    print(f"X_train shape: {getattr(X_train, 'shape', 'No shape')}")
-    try:
-        # Avoid printing a huge sparse structure
-        if hasattr(X_train, "toarray"):
-            preview = X_train[:2].toarray()
-        else:
-            preview = X_train[:2]
-        print(f"X_train preview (first 2 rows): {preview}")
-    except Exception as e:
-        print(f"Preview skipped: {e}")
-
-    # Sanity checks
-    if hasattr(X_train, "shape") and hasattr(X_test, "shape"):
-        if X_train.shape[1] != X_test.shape[1]:
-            print(f"[ERROR] Feature mismatch: X_train has {X_train.shape[1]} features, X_test has {X_test.shape[1]} features.", file=sys.stderr)
-            return
+    # Sanity check: ensure X_train and X_test have the same number of features.
+    # Exit early if mismatch to prevent model errors.
+    if not hasattr(X_train, "shape") or not hasattr(X_test, "shape"):
+        print("[ERROR] X_train or X_test does not have a valid shape attribute.", file=sys.stderr)
+        return
+    
+    if X_train.shape[1] != X_test.shape[1]:
+        print(f"[ERROR] Feature mismatch: X_train has {X_train.shape[1]} features, X_test has {X_test.shape[1]} features.", file=sys.stderr)
+        return
 
     # Train model
     print("Training Logistic Regression model ...")
-    X_train_vec = X_train
+    model = LogisticRegression(max_iter=1000, solver="lbfgs", random_state=42)
+    model.fit(X_train, y_train)
 
-    model = LogisticRegression(max_iter=1000, solver="liblinear", random_state=42, n_jobs=-1)
-    model.fit(X_train_vec, y_train)
-
+    if len(y_test) != X_test.shape[0]:
+        print(f"[ERROR] Row mismatch: X_test has {X_test.shape[0]} rows but y_test has {len(y_test)} labels.", file=sys.stderr)
+        return
+    
     # Evaluate on test
-    X_test_vec = X_test
-    y_pred = model.predict(X_test_vec)
+    y_pred = model.predict(X_test)
 
     print("[LR-Orig] Test accuracy:", accuracy_score(y_test, y_pred))
     print("[LR-Orig] Classification report:")
