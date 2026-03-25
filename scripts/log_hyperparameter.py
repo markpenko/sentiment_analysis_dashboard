@@ -3,81 +3,75 @@
 
 # Import Libraries
 import json
-import pickle
 import pandas as pd
 from pathlib import Path
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
 import sys
 
+from sklearn.pipeline import Pipeline
+
 # Paths
-DATA_DIR = Path(__file__).resolve().parents[1] / "data"
-MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
-MODELS_DIR.mkdir(parents=True, exist_ok=True)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
+MODELS_DIR = PROJECT_ROOT / "models"
+PROCESSED_DIR = DATA_DIR / "processed_data"
 
 # Verify data files exist before proceeding
-x_train_path = DATA_DIR / "processed_data/X_train_balanced.pickle"
-y_train_path = DATA_DIR / "processed_data/y_train_balanced.pickle"
-x_test_path = DATA_DIR / "processed_data/X_test.pickle"
-test_csv_path = DATA_DIR / "processed_data/test_data_preprocessed.csv"
-vectorizer_path = MODELS_DIR / "vectorizer.pickle"
+train_path = PROCESSED_DIR / "train_data_preprocessed.csv"
+test_path = PROCESSED_DIR / "test_data_preprocessed.csv"
 
-required_files = [x_train_path, y_train_path, x_test_path, test_csv_path, vectorizer_path]
-
+required_files = [train_path, test_path]
 for path in required_files:
     if not path.exists():
         print(f"[ERROR] Missing file: {path}", file=sys.stderr)
         sys.exit(1)
 
-# Load balanced training data
+# Loading data
 print("Loading training data ...")  
-with open(x_train_path, 'rb') as file:
-        X_train = pickle.load(file)
-with open(y_train_path, 'rb') as file:
-        y_train = pickle.load(file)
-
-# Load fitted vectorizer
-print("Loading fitted vectorizer ...")
-with open(vectorizer_path, 'rb') as file:
-    vectorizer = pickle.load(file)
-
-# Load test data
+train_data = pd.read_csv(train_path)
 print("Loading test data ...")
-with open(x_test_path, 'rb') as file:
-    X_test = pickle.load(file)
-    
-test_data = pd.read_csv(test_csv_path)
+test_data = pd.read_csv(test_path)
 
-if "sentiment" not in test_data.columns:
-    print("[ERROR] 'sentiment' column not found in test_data_preprocessed.csv", file=sys.stderr)
+if "review" not in train_data.columns or "sentiment" not in train_data.columns:
+    print("[ERROR] train_data_preprocessed.csv must contain 'review' and 'sentiment' columns.", file=sys.stderr)
     sys.exit(1)
 
+if "review" not in test_data.columns or "sentiment" not in test_data.columns:
+    print("[ERROR] test_data_preprocessed.csv must contain 'review' and 'sentiment' columns.", file=sys.stderr)
+    sys.exit(1)
+
+# Extracting features and labels
+X_train = train_data['review']
+y_train = train_data['sentiment']
+X_test = test_data['review']
 y_test = test_data['sentiment']
 
-# Sanity check: ensure X_train and X_test have the same number of features.
-# Exit early if mismatch to prevent model errors.
-if not hasattr(X_train, "shape") or not hasattr(X_test, "shape"):
-    print("[ERROR] X_train or X_test does not have a valid shape attribute.", file=sys.stderr)
+if len(y_test) != X_test.shape[0]:
+    print(f"[ERROR] Row mismatch: X_test has {X_test.shape[0]} rows but y_test has {len(y_test)} labels.", file=sys.stderr)
     sys.exit(1)
 
-if X_train.shape[1] != X_test.shape[1]:
-    print(f"[ERROR] Feature mismatch: X_train has {X_train.shape[1]} features, X_test has {X_test.shape[1]} features.", file=sys.stderr)
-    sys.exit(1)
-
-# Tune Logistic Regression classifier only
-print("Tuning Logistic Regression classifier ...")
-model = LogisticRegression(max_iter=1000, random_state=42)
+# Pipeline
+print("Tuning TF-IDF + Logistic Regression pipeline ...")
+pipe = Pipeline([
+    ("tfidf", TfidfVectorizer()),
+    ("clf", LogisticRegression(max_iter=1000, random_state=42))
+])
 
 param_grid = {
-    "C": [0.1, 1, 10],
-    "solver": ["lbfgs", "liblinear", "saga"],
+    "tfidf__max_features": [2000, 5000, 10000],
+    "tfidf__ngram_range": [(1,1), (1,2)],
+    "tfidf__min_df": [1, 2, 5],
+    "clf__C": [0.1, 1, 10],
+    "clf__solver": ["lbfgs", "liblinear", "saga"],
 }
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
 grid = GridSearchCV(
-    estimator=model, 
+    estimator=pipe, 
     param_grid=param_grid, 
     cv=cv, 
     scoring="accuracy", 
@@ -87,16 +81,17 @@ grid = GridSearchCV(
 
 grid.fit(X_train, y_train)
 
-best_model = grid.best_estimator_
-y_pred = best_model.predict(X_test)
+best_pipeline = grid.best_estimator_
+y_pred = best_pipeline.predict(X_test)
 acc = accuracy_score(y_test, y_pred)
+
 print("\n[LR] Test accuracy:", acc)
 print("[LR] Classification report:\n", classification_report(y_test, y_pred, digits=4))
 
-# Saving model and vectorizer as a bundle
-print("Saving tuned model and vectorizer as a bundle...")
-bundle_path = MODELS_DIR / "tuned_logistic_regression_bundle.joblib"
-joblib.dump((best_model, vectorizer), bundle_path)
+# Saving full pipeline
+print("Saving tuned pipeline ...")
+bundle_path = MODELS_DIR / "tuned_logistic_regression_pipeline.joblib"
+joblib.dump(best_pipeline, bundle_path)
 
 out_params = MODELS_DIR / "logreg_best_params.json"
 with open(out_params, "w") as f:
