@@ -2,33 +2,32 @@
 # Mark Antepenko
 
 # Import Libraries
-import pandas as pd
-import joblib
-from pathlib import Path
 import os
-import tensorflow as tf
-from tensorflow.keras.preprocessing.text import Tokenizer  # pyright: ignore[reportMissingImports]
-from tensorflow.keras.preprocessing.sequence import pad_sequences  # pyright: ignore[reportMissingImports]
-from tensorflow.keras.models import Sequential  # pyright: ignore[reportMissingImports]
-from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout  # pyright: ignore[reportMissingImports]
-from tensorflow.keras.optimizers.legacy import Adam as LegacyAdam  # pyright: ignore[reportMissingImports]
-from tensorflow.keras.metrics import AUC  # pyright: ignore[reportMissingImports]
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau  # pyright: ignore[reportMissingImports]
-from sklearn.model_selection import StratifiedShuffleSplit
-from sklearn.metrics import accuracy_score, classification_report
-import numpy as np
-import random
 import json
+import random
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+import tensorflow as tf 
+from sklearn.metrics import accuracy_score, classification_report, roc_auc_score
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.utils.class_weight import compute_class_weight
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau # pyright: ignore[reportMissingImports]
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Dropout # pyright: ignore[reportMissingImports]
+from tensorflow.keras.metrics import AUC # pyright: ignore[reportMissingImports]
+from tensorflow.keras.models import Sequential # pyright: ignore[reportMissingImports]
+from tensorflow.keras.optimizers import Adam # pyright: ignore[reportMissingImports]
+from tensorflow.keras.preprocessing.sequence import pad_sequences # pyright: ignore[reportMissingImports]
+from tensorflow.keras.preprocessing.text import Tokenizer # pyright: ignore[reportMissingImports] 
 
 # Runtime safety toggle
 os.environ.setdefault("USE_TF_GPU", "0")  # default to CPU unless explicitly enabled
 USE_GPU = os.environ.get("USE_TF_GPU", "0") == "1"
-if not USE_GPU:
-    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-# Device configuration
 if USE_GPU:
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     try:
         gpus = tf.config.list_physical_devices('GPU')
         if gpus:
@@ -41,7 +40,6 @@ if USE_GPU:
         print("GPU memory growth not set:", e)
 else:
     try:
-        # Hide GPUs from TF runtime explicitly
         tf.config.set_visible_devices([], 'GPU')
         print("GPU disabled explicitly. Running on CPU. Set USE_TF_GPU=1 to enable.")
     except Exception as e:
@@ -53,131 +51,288 @@ os.environ["PYTHONHASHSEED"] = str(SEED)
 random.seed(SEED)
 np.random.seed(SEED)
 tf.random.set_seed(SEED)
+
 try:
     tf.config.experimental.enable_op_determinism(True)
 except Exception:
     pass
 
-# Setting the project root
+# Paths
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = PROJECT_ROOT / "data"
+DATA_DIR = PROJECT_ROOT / "data" / "processed_data"
 MODELS_DIR = PROJECT_ROOT / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
-# Load preprocessed data
+# Data Pipeline
 print("Loading preprocessed data...")
-train_data = pd.read_csv(DATA_DIR / 'processed_data/train_data_preprocessed.csv')
-test_data = pd.read_csv(DATA_DIR / 'processed_data/test_data_preprocessed.csv')
+train_data = pd.read_csv(DATA_DIR / 'train_data_preprocessed.csv')
+test_data = pd.read_csv(DATA_DIR / 'test_data_preprocessed.csv')
 
 # Extract features and labels
 print("Preparing data...")
 X_train = train_data['review']
-y_train = train_data['sentiment'].apply(lambda x: 1 if x == 'positive' else 0)
-X_test = test_data['review']
-y_test = test_data['sentiment'].apply(lambda x: 1 if x == 'positive' else 0)
+y_train = train_data['sentiment'].map({"positive": 1, "negative": 0})
 
-# Load existing model and tokenizer
-print("Loading existing model and tokenizer...")
-try:
-    base_model = tf.keras.models.load_model(MODELS_DIR / "lstm_model.keras") 
-    tokenizer = joblib.load(MODELS_DIR / "tokenizer.joblib")
-    
-    # Load metadata
-    with open(MODELS_DIR / "lstm_meta.json", "r") as f:
+X_test = test_data['review']
+y_test = test_data['sentiment'].map({"positive": 1, "negative": 0})
+
+# Tokenize
+print("Tokenizing text...")
+VOCAB_SIZE = 5000
+max_length = 200
+OOV_TOKEN = '<OOV>'
+
+meta_path = MODELS_DIR / "lstm_meta.json"
+tokenizer_path = MODELS_DIR / "tokenizer.joblib"
+
+if meta_path.exists():
+    print("Loading existing metadata...")
+    with open(meta_path, 'r') as f:
         meta = json.load(f)
-    
     VOCAB_SIZE = meta["vocab_size_requested"]
     max_length = meta["max_length"]
-    vocab_size_effective = meta["vocab_size_effective"]
-    
-    print(f"Loaded existing model with vocab_size={vocab_size_effective}, max_length={max_length}")
-    
-except FileNotFoundError:
-    print("ERROR: No existing model found. Please run lstm_model.py first!")
-    exit(1)
 
-def vec(xs):
-    return pad_sequences(
-        tokenizer.texts_to_sequences(xs),
-        maxlen=max_length,
-        padding="post",
-        truncating="post",
-    )
+if tokenizer_path.exists():
+    print("Loading existing tokenizer...")
+    tokenizer = joblib.load(tokenizer_path)
+else:
+    print("No existing tokenizer found. Fitting a new tokenizer...")
+    tokenizer = Tokenizer(num_words=VOCAB_SIZE, oov_token=OOV_TOKEN)
+    tokenizer.fit_on_texts(X_train)
 
-Xtr = vec(X_train)
-Xte = vec(X_test)
+vocab_size_effective = min(VOCAB_SIZE, len(tokenizer.word_index) + 1)
 
-# Stratified train/validation split
+# Padding sequences
+print("Padding sequences...")
+X_train_sequences = tokenizer.texts_to_sequences(X_train)
+X_test_sequences = tokenizer.texts_to_sequences(X_test)
+
+X_train_padded = pad_sequences(
+    X_train_sequences,
+    maxlen=max_length,
+    padding='post',
+    truncating='post'
+)
+
+X_test_padded = pad_sequences(
+    X_test_sequences,
+    maxlen=max_length,
+    padding='post',
+    truncating='post'
+)
+
+# Training and Validation Split
 print("Creating train/validation split...")
-sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
-(tr_idx, val_idx), = sss.split(Xtr, y_train)
-X_tr, X_val = Xtr[tr_idx], Xtr[val_idx]
-y_tr, y_val = y_train[tr_idx], y_train[val_idx]
+sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=SEED)
+(train_idx, val_idx), = sss.split(X_train_padded, y_train)
 
-# Class weights for imbalance
+X_tr = X_train_padded[train_idx]
+X_val = X_train_padded[val_idx]
+y_tr = np.array(y_train)[train_idx]
+y_val = np.array(y_train)[val_idx]
+
+# Class weights
 print("Computing class weights...")
 classes = np.array([0, 1])
-class_weights = compute_class_weight(class_weight='balanced', classes=classes, y=y_tr)
+class_weights = compute_class_weight(
+    class_weight='balanced',
+    classes=classes, 
+    y=y_tr
+)
 class_weight_dict = {int(c): float(w) for c, w in zip(classes, class_weights)}
 
-# Evaluate baseline model first
-print("Evaluating baseline model...")
-baseline_metrics = base_model.evaluate(Xte, y_test, verbose=0, return_dict=True)
-baseline_acc = float(baseline_metrics.get("accuracy", 0.0))
-print(f"Baseline model accuracy: {baseline_acc:.4f}")
-
-# Hyperparameter configurations to try (fine-tuning around existing parameters)
-fine_tune_configs = [
-    {"lr": 5e-4, "batch_size": 32, "epochs": 5, "description": "Lower LR"},
-    {"lr": 2e-3, "batch_size": 32, "epochs": 5, "description": "Higher LR"},
-    {"lr": 1e-3, "batch_size": 16, "epochs": 5, "description": "Smaller batch"},
-    {"lr": 1e-3, "batch_size": 64, "epochs": 5, "description": "Larger batch"},
+# Creating the hyperparameter search space
+print("Creating hyperparameter search space...")
+configs = [
+    {
+        "description": "baseline",
+        "embedding_dim": 100,
+        "lstm_units_1": 128,
+        "lstm_units_2": 64,
+        "dropout_rate": 0.2,
+        "learning_rate": 0.001,
+        "batch_size": 32,
+        "epochs": 10,
+    },
+    {
+        "description": "smaller_lstm",
+        "embedding_dim": 100,
+        "lstm_units_1": 64,
+        "lstm_units_2": 32,
+        "dropout_rate": 0.2,
+        "learning_rate": 0.001,
+        "batch_size": 32,
+        "epochs": 10,
+    },
+    {
+        "description": "higher_dropout",
+        "embedding_dim": 100,
+        "lstm_units_1": 128,
+        "lstm_units_2": 64,
+        "dropout_rate": 0.3,
+        "learning_rate": 0.001,
+        "batch_size": 32,
+        "epochs": 10,
+    },
+    {
+        "description": "lower_lr",
+        "embedding_dim": 100,
+        "lstm_units_1": 128,
+        "lstm_units_2": 64,
+        "dropout_rate": 0.2,
+        "learning_rate": 0.0005,
+        "batch_size": 32,
+        "epochs": 10,
+    },
+    {
+        "description": "smaller_batch",
+        "embedding_dim": 100,
+        "lstm_units_1": 128,
+        "lstm_units_2": 64,
+        "dropout_rate": 0.2,
+        "learning_rate": 0.001,
+        "batch_size": 16,
+        "epochs": 10,
+    },
 ]
 
-best_val = -1.0
+best_val_auc = -1.0
+best_config = None
 best_model = None
-best_cfg = None
-best_description = ""
+results = []
 
-# Fine-tuning loop
-print("Starting fine-tuning of existing model...")
-for cfg in fine_tune_configs:
-    print(f"Testing configuration: {cfg['description']} - {cfg}")
-    
-    # Load fresh copy of the base model for each experiment
-    model = tf.keras.models.clone_model(base_model)
-    model.set_weights(base_model.get_weights())  # Copy weights from original
-    
-    # Recompile with new optimizer settings
-    opt = LegacyAdam(learning_rate=cfg["lr"])
-    model.compile(optimizer=opt, loss="binary_crossentropy", metrics=["accuracy", AUC(name="auc")])
-    
-    # Fine-tune the model
-    hist = model.fit(
-        X_tr, y_tr,
+print("Starting hyperparameter search...")
+
+for i, config in enumerate(configs, start=1):
+    print("\n" + "-" * 50)
+    print(f"Config {i:2}/{len(configs)}: {config['description']}")
+    print(config)
+    print("-" * 50)
+
+    # Clear state before building next model
+    tf.keras.backend.clear_session()
+    random.seed(SEED)
+    np.random.seed(SEED)
+    tf.random.set_seed(SEED)
+
+    # Build the model
+    model = Sequential([
+        Embedding(
+            input_dim=vocab_size_effective, 
+            output_dim=config["embedding_dim"], 
+            input_length=max_length, 
+            mask_zero=True
+        ),
+        LSTM(config["lstm_units_1"], return_sequences=True),
+        Dropout(config["dropout_rate"]),
+        LSTM(config["lstm_units_2"]),
+        Dropout(config["dropout_rate"]),
+        Dense(1, activation='sigmoid')
+    ])
+
+    # Compile the model
+    model.compile(
+        optimizer=Adam(learning_rate=config["learning_rate"]), 
+        loss='binary_crossentropy',
+        metrics=['accuracy', AUC(name='auc')]
+    )
+
+    # Train the model
+    history = model.fit(
+        X_tr, 
+        y_tr,
         validation_data=(X_val, y_val),
-        epochs=cfg["epochs"],
-        batch_size=cfg["batch_size"],
-        verbose=2,
+        epochs=config["epochs"],
+        batch_size=config["batch_size"],
         class_weight=class_weight_dict,
         callbacks=[
-            EarlyStopping(monitor="val_auc", mode="max", patience=2, restore_best_weights=True),
-            ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=1, verbose=1)
+            EarlyStopping(
+                monitor="val_auc", 
+                mode="max", 
+                patience=2, 
+                restore_best_weights=True
+            ),
+            ReduceLROnPlateau(
+                monitor="val_loss", 
+                factor=0.5, 
+                patience=1, 
+                verbose=1
+            )
         ],
+        verbose=1
     )
-    
-    val_auc = float(max(hist.history.get("val_auc", [0.0])))
-    print(f"Configuration '{cfg['description']}' achieved val_auc: {val_auc:.4f}")
-    
-    if val_auc > best_val:
-        best_val = val_auc
-        best_model = model
-        best_cfg = cfg
-        best_description = cfg['description']
 
-# Evaluate best fine-tuned model
-print("\nEvaluating best fine-tuned model...")
-metrics = best_model.evaluate(Xte, y_test, verbose=0, return_dict=True)
-test_loss = float(metrics.get("loss", 0.0))
-test_acc = float(metrics.get("accuracy", 0.0))
-y_prob = best_model.predict(Xte, verbose=0).ravel()
+    val_auc = float(max(history.history.get('val_auc', [0.0])))
+    val_acc = float(max(history.history.get('val_accuracy', [0.0])))
+
+    result_row = {
+        "description": config["description"],
+        "val_auc": val_auc,
+        "val_accuracy": val_acc,
+        "embedding_dim": config["embedding_dim"],
+        "lstm_units_1": config["lstm_units_1"],
+        "lstm_units_2": config["lstm_units_2"],
+        "dropout_rate": config["dropout_rate"],
+        "learning_rate": config["learning_rate"],
+        "batch_size": config["batch_size"],
+        "epochs": config["epochs"],
+    }
+    results.append(result_row)
+
+    print(f"Best val_auc for {config['description']}: {val_auc:.4f}")
+    print(f"Best val_accuracy for {config['description']}: {val_acc:.4f}")
+
+    if val_auc > best_val_auc:
+        best_val_auc = val_auc
+        best_config = config.copy()
+        best_model = model
+
+# Best results summary
+print("\n" + "=" * 50)
+print("Hyperparameter search complete!")
+print(f"Best config: {best_config['description']}")
+print(f"Best validation AUC: {best_val_auc:.4f}")
+print(best_config)
+
+# Save all results
+with open(MODELS_DIR / "lstm_tunning_results.json", "w") as f:
+    json.dump(results, f, indent=2)
+
+with open(MODELS_DIR / "lstm_best_params.json", "w") as f:
+    json.dump(best_config, f, indent=2)
+
+print(f"Saved tuning results to {MODELS_DIR / 'lstm_tunning_results.json'}")
+print(f"Saved best params to {MODELS_DIR / 'lstm_best_params.json'}")
+
+# Evaluate best model on test set
+print("\nEvaluating best model on test set...")
+y_pred_prob = best_model.predict(X_test_padded, verbose=0).ravel()
+y_pred = (y_pred_prob > 0.5).astype(int)
+
+test_accuracy = accuracy_score(y_test, y_pred)
+test_auc = roc_auc_score(y_test, y_pred_prob)
+
+print(f"Test Accuracy: {test_accuracy:.4f} | Test ROC-AUC: {test_auc:.4f}")
+print(classification_report(y_test, y_pred, zero_division=0))
+
+# Saving the best model
+print("Saving best model...")
+best_model.save(str(MODELS_DIR / "lstm_model_tuned.keras"))
+
+tuned_meta = {
+    "vocab_size_requested": int(VOCAB_SIZE),
+    "vocab_size_effective": int(vocab_size_effective),
+    "max_length": int(max_length),
+    "seed": int(SEED),
+    "best_config": best_config,
+    "best_validation_auc": float(best_val_auc),
+    "test_accuracy": float(test_accuracy),
+    "test_roc_auc": float(test_auc),
+}
+
+with open(MODELS_DIR / "best_lstm_tuned_meta.json", "w") as f:
+    json.dump(tuned_meta, f, indent=2)
+
+print(f"Saved best model to {MODELS_DIR / 'lstm_model_tuned.keras'}")
+print(f"Saved best model metadata to {MODELS_DIR / 'lstm_tuned_meta.json'}")
+    

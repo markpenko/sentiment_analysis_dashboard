@@ -1,4 +1,4 @@
-# Chapter 13 evaluate_model.py
+# evaluate_model.py
 # Mark Antepenko
 
 # Import libraries
