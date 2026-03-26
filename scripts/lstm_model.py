@@ -171,7 +171,7 @@ callbacks = [
         verbose=1
     ),
     ModelCheckpoint(
-        filepath=str(MODELS_DIR / "lstm_model_best.weights.h5"),
+        filepath=str(MODELS_DIR / "lstm_model_checkpoint.weights.h5"),
         monitor="val_auc",
         mode="max",
         save_best_only=True,
@@ -196,14 +196,14 @@ history = model.fit(
 # Save the trained model and tokenizer
 print("Saving the artifacts...")
 
-model.save_weights(str(MODELS_DIR / "lstm_model_weights.h5"))
+model.save_weights(str(MODELS_DIR / "lstm_model_baseline.weights.h5"))
 
 model_json = model.to_json()
 with open(MODELS_DIR / "lstm_model_architecture.json", "w") as json_file:
     json_file.write(model_json)
 
-model.save(str(MODELS_DIR / "lstm_model.keras"))
-joblib.dump(tokenizer, MODELS_DIR / "tokenizer.joblib")
+model.save(str(MODELS_DIR / "lstm_model_baseline.keras"))
+joblib.dump(tokenizer, MODELS_DIR / "lstm_tokenizer.joblib")
 
 meta = {
     "vocab_size_requested": int(VOCAB_SIZE),
@@ -221,14 +221,14 @@ meta = {
     }
 }
 
-with open(MODELS_DIR / "lstm_meta.json", "w") as f:
+with open(MODELS_DIR / "lstm_baseline_meta.json", "w") as f:
     json.dump(meta, f, indent=2)
 
-print(f"Saved model weights -> {MODELS_DIR / 'lstm_model_weights.h5'}")
+print(f"Saved model weights -> {MODELS_DIR / 'lstm_model_baseline.weights.h5'}")
 print(f"Saved model architecture -> {MODELS_DIR / 'lstm_model_architecture.json'}")
-print(f"Saved full model -> {MODELS_DIR / 'lstm_model.keras'}")
-print(f"Saved tokenizer -> {MODELS_DIR / 'tokenizer.joblib'}")
-print(f"Saved metadata -> {MODELS_DIR / 'lstm_meta.json'}")
+print(f"Saved full model -> {MODELS_DIR / 'lstm_model_baseline.keras'}")
+print(f"Saved tokenizer -> {MODELS_DIR / 'lstm_tokenizer.joblib'}")
+print(f"Saved metadata -> {MODELS_DIR / 'lstm_baseline_meta.json'}")
 
 # Evaluate the model
 print("Evaluating the model on the test set...")

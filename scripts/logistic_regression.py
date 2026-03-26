@@ -72,7 +72,7 @@ def main():
 
     # Save the fitted vectorizer + model
     print("Saving Logistic Regression Pipeline ...")
-    bundle_path = MODELS_DIR / "logistic_regression_pipeline.joblib"
+    bundle_path = MODELS_DIR / "logistic_model_baseline.joblib"
     joblib.dump(pipe, bundle_path)
     print(f"[LR] Saved bundle -> {bundle_path}")
 

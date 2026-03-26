@@ -90,7 +90,7 @@ print("[LR] Classification report:\n", classification_report(y_test, y_pred, dig
 
 # Saving full pipeline
 print("Saving tuned pipeline ...")
-bundle_path = MODELS_DIR / "tuned_logistic_regression_pipeline.joblib"
+bundle_path = MODELS_DIR / "logreg_model_tuned.joblib"
 joblib.dump(best_pipeline, bundle_path)
 
 out_params = MODELS_DIR / "logreg_best_params.json"

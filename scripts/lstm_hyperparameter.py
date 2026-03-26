@@ -83,7 +83,7 @@ max_length = 200
 OOV_TOKEN = '<OOV>'
 
 meta_path = MODELS_DIR / "lstm_meta.json"
-tokenizer_path = MODELS_DIR / "tokenizer.joblib"
+tokenizer_path = MODELS_DIR / "lstm_tokenizer.joblib"
 
 if meta_path.exists():
     print("Loading existing metadata...")
@@ -295,13 +295,13 @@ print(f"Best validation AUC: {best_val_auc:.4f}")
 print(best_config)
 
 # Save all results
-with open(MODELS_DIR / "lstm_tunning_results.json", "w") as f:
+with open(MODELS_DIR / "lstm_tuning_results.json", "w") as f:
     json.dump(results, f, indent=2)
 
 with open(MODELS_DIR / "lstm_best_params.json", "w") as f:
     json.dump(best_config, f, indent=2)
 
-print(f"Saved tuning results to {MODELS_DIR / 'lstm_tunning_results.json'}")
+print(f"Saved tuning results to {MODELS_DIR / 'lstm_tuning_results.json'}")
 print(f"Saved best params to {MODELS_DIR / 'lstm_best_params.json'}")
 
 # Evaluate best model on test set
@@ -330,7 +330,7 @@ tuned_meta = {
     "test_roc_auc": float(test_auc),
 }
 
-with open(MODELS_DIR / "best_lstm_tuned_meta.json", "w") as f:
+with open(MODELS_DIR / "lstm_tuned_meta.json", "w") as f:
     json.dump(tuned_meta, f, indent=2)
 
 print(f"Saved best model to {MODELS_DIR / 'lstm_model_tuned.keras'}")
