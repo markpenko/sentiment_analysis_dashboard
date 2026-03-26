@@ -146,6 +146,7 @@ print("Creating hyperparameter search space...")
 configs = [
     {
         "description": "baseline",
+        "bidirectional": False,
         "embedding_dim": 100,
         "lstm_units_1": 128,
         "lstm_units_2": 64,
@@ -156,6 +157,7 @@ configs = [
     },
     {
         "description": "smaller_lstm",
+        "bidirectional": False,
         "embedding_dim": 100,
         "lstm_units_1": 64,
         "lstm_units_2": 32,
@@ -165,33 +167,36 @@ configs = [
         "epochs": 10,
     },
     {
-        "description": "higher_dropout",
+        "description": "bidirectional_baseline",
+        "bidirectional": True,
+        "embedding_dim": 100,
+        "lstm_units_1": 128,
+        "lstm_units_2": 64,
+        "dropout_rate": 0.2,
+        "learning_rate": 0.001,
+        "batch_size": 32,
+        "epochs": 10,
+    },
+    {
+        "description": "bidirectional_smaller_lstm",
+        "bidirectional": True,
+        "embedding_dim": 100,
+        "lstm_units_1": 64,
+        "lstm_units_2": 32,
+        "dropout_rate": 0.2,
+        "learning_rate": 0.001,
+        "batch_size": 32,
+        "epochs": 10,
+    },
+    {
+        "description": "bidirectional_tuned",
+        "bidirectional": True,
         "embedding_dim": 100,
         "lstm_units_1": 128,
         "lstm_units_2": 64,
         "dropout_rate": 0.3,
-        "learning_rate": 0.001,
-        "batch_size": 32,
-        "epochs": 10,
-    },
-    {
-        "description": "lower_lr",
-        "embedding_dim": 100,
-        "lstm_units_1": 128,
-        "lstm_units_2": 64,
-        "dropout_rate": 0.2,
         "learning_rate": 0.0005,
         "batch_size": 32,
-        "epochs": 10,
-    },
-    {
-        "description": "smaller_batch",
-        "embedding_dim": 100,
-        "lstm_units_1": 128,
-        "lstm_units_2": 64,
-        "dropout_rate": 0.2,
-        "learning_rate": 0.001,
-        "batch_size": 16,
         "epochs": 10,
     },
 ]
@@ -256,10 +261,10 @@ for i, config in enumerate(configs, start=1):
                 monitor="val_loss", 
                 factor=0.5, 
                 patience=1, 
-                verbose=1
+                verbose=0
             )
         ],
-        verbose=1
+        verbose=0
     )
 
     val_auc = float(max(history.history.get('val_auc', [0.0])))
