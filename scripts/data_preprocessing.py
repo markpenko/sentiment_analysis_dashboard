@@ -21,10 +21,21 @@ PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 NLTK_DIR.mkdir(parents=True, exist_ok=True)
 
 # Download NLTK resources
-for pkg in ['punkt', 'stopwords', 'wordnet']:
+nltk.data.path.insert(0, str(NLTK_DIR))
+nltk.data.path = [str(NLTK_DIR)]
+
+# Download/check required NLTK resources
+NLTK_PACKAGES = {
+    "punkt": "tokenizers/punkt",
+    "stopwords": "corpora/stopwords",
+    "wordnet": "corpora/wordnet",
+}
+
+for pkg, resource_path in NLTK_PACKAGES.items():
     try:
-        nltk.data.find(f'tokenizers/{pkg}' if pkg == 'punkt' else f'corpora/{pkg}')
+        nltk.data.find(resource_path)
     except LookupError:
+        print(f"Downloading NLTK package: {pkg}")
         nltk.download(pkg, download_dir=str(NLTK_DIR))
 
 ## Reading and importing .csv for train and test datasets

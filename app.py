@@ -1,12 +1,10 @@
-# Chapter 13 app.py
+# app.py
 # Mark Antepenko
 
 # Import libraries
 import os
 import joblib
-import numpy as np
 import tensorflow as tf
-import plotly.express as px
 import pandas as pd
 import string
 from pathlib import Path
@@ -18,30 +16,32 @@ from wordcloud import WordCloud
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-nltk.download('punkt')
-nltk.download('stopwords')  
-nltk.download('wordnet')
-
-lemmatizer = nltk.WordNetLemmatizer()
-stop_words = set(stopwords.words('english'))
 
 app = Flask(__name__)
 
-# Runtime safety toggles
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-# Set USE_TF_GPU=1 in your shell to re-enable GPU later
-# export USE_TF_GPU=1
+# Runtime safety toggle
+os.environ.setdefault("USE_TF_GPU", "0")  # default to CPU unless explicitly enabled
 USE_GPU = os.environ.get("USE_TF_GPU", "0") == "1"
 
-# Force CPU MacOS Issue
-if not USE_GPU:
+if USE_GPU:
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     try:
-        tf.config.set_visible_devices([], "GPU")
-        print("Using CPU (Metal GPU disabled). Set USE_TF_GPU=1 to enable.")
+        gpus = tf.config.list_physical_devices('GPU')
+        if gpus:
+            for g in gpus:
+                tf.config.experimental.set_memory_growth(g, True)
+            print(f"GPU enabled: {len(gpus)} device(s) with memory growth set.")
+        else:
+            print("No GPU devices detected; running on CPU.")
+    except Exception as e:
+        print("GPU memory growth not set:", e)
+else:
+    try:
+        tf.config.set_visible_devices([], 'GPU')
+        print("GPU disabled explicitly. Running on CPU. Set USE_TF_GPU=1 to enable.")
     except Exception as e:
         print("GPU disable skipped:", e)
 
@@ -52,19 +52,26 @@ MODELS_DIR = PROJECT_ROOT / "models"
 TEMPLATE_DIR = PROJECT_ROOT / "templates"
 UPLOAD_FOLDER = DATA_DIR / 'uploads'
 STATIC_FOLDER = PROJECT_ROOT / "static"
+NLTK_DIR = PROJECT_ROOT / "nltk"
 ALLOWED_EXTENSIONS = {'csv', 'txt'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+nltk.data.path.insert(0, str(NLTK_DIR))
+nltk.data.path = [str(NLTK_DIR)]
+
+lemmatizer = nltk.WordNetLemmatizer()
+stop_words = set(stopwords.words('english'))
 
 # Function to check allowed file types
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Load the LSTM model and tokenizer
-lstm_model = load_model(MODELS_DIR / 'lstm_best.keras', compile=False)
-tokenizer = joblib.load(MODELS_DIR / 'lstm_best_tokenizer.joblib')
+lstm_model = load_model(MODELS_DIR / 'lstm_model_tuned.keras', compile=False)
+tokenizer = joblib.load(MODELS_DIR / 'lstm_tokenizer.joblib')
 
 # Load the Logistic Regression model
-vectorizer, logistic_regression_model = joblib.load(MODELS_DIR / 'tuned_logistic_regression_bundle.joblib')
+vectorizer, logistic_regression_model = joblib.load(MODELS_DIR / 'logreg_model_tuned.joblib')
 
 MAX_SEQUENCE_LENGTH = 200
 
@@ -210,4 +217,4 @@ def upload_file():
     return render_template('upload.html', file_text=file_text)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
